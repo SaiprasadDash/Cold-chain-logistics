@@ -48,11 +48,11 @@ EMBEDDINGS_MODEL_SETTING = os.getenv("Embeddings_model", "LOCAL").strip().upper(
 if EMBEDDINGS_MODEL_SETTING == "OPENAI":
     print("🤖 Mode: Utilizing Cloud OpenAI Embeddings (1536 Dim)...")
     embeddings = OpenAIEmbeddings()
-    INDEX_NAME = "fde-sop-index-openai"  # Isolated OpenAI Index
+    INDEX_NAME = "fde-sop-index-openai"
     TARGET_DIMENSION = 1536
 else:
-    # Read the explicit model identifier casing string from the .env parameters
-    local_model_target = os.getenv("Local_Embedding_Model", "BAAI/bge-m3").strip()
+
+    local_model_target = os.getenv("LOCAL_EMBEDDING_MODEL", "BAAI/bge-m3").strip()
     
     print(f"🤗 Mode: Local Fallback Settings Activated. Launching [{local_model_target}] (1024 Dim)...")
     from langchain_huggingface import HuggingFaceEmbeddings
