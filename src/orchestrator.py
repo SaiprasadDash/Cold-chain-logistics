@@ -9,6 +9,7 @@ from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode, tools_condition
 from langgraph.checkpoint.memory import MemorySaver
+from langchain_groq import ChatGroq
 
 # ==========================================
 # 1. SETUP & PATH RESOLUTION
@@ -32,27 +33,27 @@ class AgentState(TypedDict):
 
 AGENT_LLM_SETTING = os.getenv("Agent_llm", "OLLAMA").strip().upper()
 
-if AGENT_LLM_SETTING == "OPENAI":
-    print("🤖 Brain Mode: Utilizing Cloud OpenAI Reasoner (gpt-4o)...")
-    from langchain_openai import ChatOpenAI
-    llm = ChatOpenAI(model="gpt-4o", temperature=0)
+if AGENT_LLM_SETTING == "GROQ":
+    print("🤖 Brain Mode: Utilizing Cloud Groq Reasoner (qwen/qwen3.8-27b)...")
+    from langchain_groq import ChatGroq
+    llm = ChatGroq(model="qwen/qwen3.8-27b", temperature=0, max_tokens=512)
 
-elif AGENT_LLM_SETTING == "DEEPSEEK":
-    print("🐳 Brain Mode: Utilizing Flagship DeepSeek Cloud Reasoner (deepseek-v4-pro)...")
-    from langchain_openai import ChatOpenAI
+# elif AGENT_LLM_SETTING == "DEEPSEEK":
+#     print("🐳 Brain Mode: Utilizing Flagship DeepSeek Cloud Reasoner (deepseek-v4-pro)...")
+#     from langchain_openai import ChatOpenAI
     
-    # Fully updated to match 2026 DeepSeek API parameters and endpoint contracts
-    llm = ChatOpenAI(
-        model="deepseek-v4-flash",                           # deepseek-v4-flash, deepseek-v4-pro
-        temperature=0,
-        openai_api_key=os.getenv("DEEPSEEK_API_KEY"),
-        base_url="https://api.deepseek.com",     # Fixed connection string url endpoint
-        max_tokens=2048,                                   # Gives the deep reasoner plenty of output runway
-        # extra_body={
-        #     "thinking": {"type": "enabled"},              # Activates DeepSeek Deep-Thinking mode
-        #     "reasoning_effort": "high"                     # Drives maximal reasoning depth for logic maps
-        # }
-    )
+#     # Fully updated to match 2026 DeepSeek API parameters and endpoint contracts
+#     llm = ChatOpenAI(
+#         model="deepseek-v4-flash",                           # deepseek-v4-flash, deepseek-v4-pro
+#         temperature=0,
+#         openai_api_key=os.getenv("DEEPSEEK_API_KEY"),
+#         base_url="https://api.deepseek.com",     # Fixed connection string url endpoint
+#         max_tokens=2048,                                   # Gives the deep reasoner plenty of output runway
+#         # extra_body={
+#         #     "thinking": {"type": "enabled"},              # Activates DeepSeek Deep-Thinking mode
+#         #     "reasoning_effort": "high"                     # Drives maximal reasoning depth for logic maps
+#         # }
+#     )
 
 else:  # FALLBACK / DEFAULT RUNNER MODE
     print("🤗 Brain Mode: Local Fallback Activated. Binding Local Ollama (qwen2.5:7b)...")
@@ -65,8 +66,16 @@ llm_with_tools = llm.bind_tools(fde_tools)
 # ==========================================
 # 3. GRAPH ARCHITECTURE ASSEMBLY
 # ==========================================
+prompt_path = project_root / "src" / "prompts" / "system_prompt.txt"
+try:
+    SYSTEM_PROMPT = SystemMessage(content=prompt_path.read_text(encoding="utf-8"))
+except FileNotFoundError:
+    print(f"Error: Could not find {prompt_path}")
+    SYSTEM_PROMPT = SystemMessage(content="You are a helpful AI assistant.")
+    
 def reasoning_node(state: AgentState):
-    response = llm_with_tools.invoke(state["messages"])
+    messages = [SYSTEM_PROMPT] + state["messages"]
+    response = llm_with_tools.invoke(messages)
     return {"messages": [response]}
 
 print("⚙️ Compiling LangGraph FDE Orchestrator...")
@@ -101,7 +110,7 @@ if __name__ == "__main__":
     system_prompt = SystemMessage(content=system_instructions)
     
     thread_config = {"configurable": {"thread_id": "production_test_1"}}
-    fde_agent.invoke({"messages": [system_prompt]}, config=thread_config)
+    # fde_agent.invoke({"messages": [system_prompt]}, config=thread_config)
     
     while True:
         user_input = input("\nDispatcher > ")
